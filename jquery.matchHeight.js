@@ -10,7 +10,8 @@
     */
 
     var _previousResizeWidth = -1,
-        _updateTimeout = -1;
+        _updateTimeout = -1,
+        _initialized = false;
 
     /*
     *  _rows
@@ -69,7 +70,8 @@
         var opts = {
             byRow: true,
             remove: false,
-            property: 'height'
+            property: 'height',
+            class: 'match-height'
         };
 
         if (typeof options === 'object') {
@@ -235,6 +237,12 @@
 
                 // set the height (accounting for padding and border)
                 $that.css(opts.property, maxHeight - verticalPadding);
+                if(_initialized === false) {
+                    _initialized = true;
+                    if(opts.class !== '') {
+                        $that.addClass(opts.class);
+                    }
+                }
             });
         });
 
