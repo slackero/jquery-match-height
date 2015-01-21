@@ -71,7 +71,7 @@
             byRow: true,
             remove: false,
             property: 'height',
-            class: 'match-height'
+            matchedClass: 'match-height'
         };
 
         if (typeof options === 'object') {
@@ -239,8 +239,8 @@
                 $that.css(opts.property, maxHeight - verticalPadding);
                 if(_initialized === false) {
                     _initialized = true;
-                    if(opts.class !== '') {
-                        $that.addClass(opts.class);
+                    if(opts.matchedClass !== '') {
+                        $that.addClass(opts.matchedClass);
                     }
                 }
             });
