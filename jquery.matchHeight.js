@@ -10,8 +10,8 @@
     */
 
     var _previousResizeWidth = -1,
-        _updateTimeout = -1,
-        _initialized = false;
+        _updateTimeout = -1;
+        //_initialized = false;
 
     /*
     *  _rows
@@ -71,7 +71,7 @@
             byRow: true,
             remove: false,
             property: 'height',
-            matchedClass: 'match-height'
+            matchedClass: ''
         };
 
         if (typeof options === 'object') {
@@ -112,8 +112,9 @@
             return this;
         }
 
-        if (this.length <= 1)
+        if (this.length <= 1) {
             return this;
+		}
 
         // keep track of this group so we can re-apply later on load and resize events
         matchHeight._groups.push({
@@ -217,8 +218,9 @@
                 $that.css(css);
 
                 // find the max height (including padding, but not margin)
-                if ($that.outerHeight(false) > maxHeight)
+                if ($that.outerHeight(false) > maxHeight) {
                     maxHeight = $that.outerHeight(false);
+                }
 
                 // revert display block
                 $that.css('display', '');
@@ -237,12 +239,12 @@
 
                 // set the height (accounting for padding and border)
                 $that.css(opts.property, maxHeight - verticalPadding);
-                if(_initialized === false) {
-                    _initialized = true;
-                    if(opts.matchedClass !== '') {
-                        $that.addClass(opts.matchedClass);
-                    }
-                }
+                //if(_initialized === false) {
+                //    _initialized = true;
+                //    if(opts.matchedClass !== '') {
+                //        $that.addClass(opts.matchedClass);
+                //    }
+                //}
             });
         });
 
@@ -253,8 +255,9 @@
         });
 
         // restore scroll position if enabled
-        if (matchHeight._maintainScroll)
+        if (matchHeight._maintainScroll) {
             $(window).scrollTop((scrollTop / htmlHeight) * $('html').outerHeight(true));
+        }
 
         return this;
     };
@@ -290,15 +293,17 @@
     */
 
     var _update = function(event) {
-        if (matchHeight._beforeUpdate)
+        if (matchHeight._beforeUpdate) {
             matchHeight._beforeUpdate(event, matchHeight._groups);
+        }
 
         $.each(matchHeight._groups, function() {
             matchHeight._apply(this.elements, this.options);
         });
 
-        if (matchHeight._afterUpdate)
+        if (matchHeight._afterUpdate) {
             matchHeight._afterUpdate(event, matchHeight._groups);
+        }
     };
 
     matchHeight._update = function(throttle, event) {
@@ -307,8 +312,9 @@
         // fixes an event looping bug in IE8
         if (event && event.type === 'resize') {
             var windowWidth = $(window).width();
-            if (windowWidth === _previousResizeWidth)
+            if (windowWidth === _previousResizeWidth) {
                 return;
+            }
             _previousResizeWidth = windowWidth;
         }
 
