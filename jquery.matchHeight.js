@@ -1,17 +1,38 @@
 /**
-* jquery.matchHeight.js v0.5.2
+* jquery.matchHeight.js master
 * http://brm.io/jquery-match-height/
 * License: MIT
 */
 
-;(function($) {
+;(function(factory) { // eslint-disable-line no-extra-semi
+    'use strict';
+    if (typeof define === 'function' && define.amd) {
+        // AMD
+        define(['jquery'], factory);
+    } else if (typeof module !== 'undefined' && module.exports) {
+        // CommonJS
+        module.exports = factory(require('jquery'));
+    } else {
+        // Global
+        factory(jQuery);
+    }
+})(function($) {
     /*
     *  internal
     */
 
     var _previousResizeWidth = -1,
         _updateTimeout = -1;
-        //_initialized = false;
+
+    /*
+    *  _parse
+    *  value parse utility function
+    */
+
+    var _parse = function(value) {
+        // parse value and convert NaN to 0
+        return parseFloat(value) || 0;
+    };
 
     /*
     *  _rows
@@ -52,16 +73,6 @@
     };
 
     /*
-    *  _parse
-    *  value parse utility function
-    */
-
-    var _parse = function(value) {
-        // parse value and convert NaN to 0
-        return parseFloat(value) || 0;
-    };
-
-    /*
     *  _parseOptions
     *  handle plugin options
     */
@@ -69,9 +80,9 @@
     var _parseOptions = function(options) {
         var opts = {
             byRow: true,
-            remove: false,
             property: 'height',
-            matchedClass: ''
+            target: null,
+            remove: false
         };
 
         if (typeof options === 'object') {
@@ -112,9 +123,9 @@
             return this;
         }
 
-        if (this.length <= 1) {
+        if (this.length <= 1 && !opts.target) {
             return this;
-		}
+        }
 
         // keep track of this group so we can re-apply later on load and resize events
         matchHeight._groups.push({
@@ -132,11 +143,15 @@
     *  plugin global options
     */
 
+    matchHeight.version = 'master';
     matchHeight._groups = [];
     matchHeight._throttle = 80;
     matchHeight._maintainScroll = false;
     matchHeight._beforeUpdate = null;
     matchHeight._afterUpdate = null;
+    matchHeight._rows = _rows;
+    matchHeight._parse = _parse;
+    matchHeight._parseOptions = _parseOptions;
 
     /*
     *  matchHeight._apply
@@ -165,12 +180,17 @@
         $hiddenParents.css('display', 'block');
 
         // get rows if using byRow, otherwise assume one row
-        if (opts.byRow) {
+        if (opts.byRow && !opts.target) {
 
             // must first force an arbitrary equal height so floating elements break evenly
             $elements.each(function() {
                 var $that = $(this),
-                    display = $that.css('display') === 'inline-block' ? 'inline-block' : 'block';
+                    display = $that.css('display');
+
+                // temporarily force a usable display value
+                if (display !== 'inline-block' && display !== 'flex' && display !== 'inline-flex') {
+                    display = 'block';
+                }
 
                 // cache the original inline style
                 $that.data('style-cache', $that.attr('style'));
@@ -183,7 +203,8 @@
                     'margin-bottom': '0',
                     'border-top-width': '0',
                     'border-bottom-width': '0',
-                    'height': '100px'
+                    'height': '100px',
+                    'overflow': 'hidden'
                 });
             });
 
@@ -199,37 +220,52 @@
 
         $.each(rows, function(key, row) {
             var $row = $(row),
-                maxHeight = 0;
+                targetHeight = 0;
 
-            // skip apply to rows with only one item
-            if (opts.byRow && $row.length <= 1) {
-                $row.css(opts.property, '');
-                return;
-            }
-
-            // iterate the row and find the max height
-            $row.each(function(){
-                var $that = $(this),
-                    display = $that.css('display') === 'inline-block' ? 'inline-block' : 'block';
-
-                // ensure we get the correct actual height (and not a previously set height value)
-                var css = { 'display': display };
-                css[opts.property] = '';
-                $that.css(css);
-
-                // find the max height (including padding, but not margin)
-                if ($that.outerHeight(false) > maxHeight) {
-                    maxHeight = $that.outerHeight(false);
+            if (!opts.target) {
+                // skip apply to rows with only one item
+                if (opts.byRow && $row.length <= 1) {
+                    $row.css(opts.property, '');
+                    return;
                 }
 
-                // revert display block
-                $that.css('display', '');
-            });
+                // iterate the row and find the max height
+                $row.each(function(){
+                    var $that = $(this),
+                        display = $that.css('display');
+
+                    // temporarily force a usable display value
+                    if (display !== 'inline-block' && display !== 'flex' && display !== 'inline-flex') {
+                        display = 'block';
+                    }
+
+                    // ensure we get the correct actual height (and not a previously set height value)
+                    var css = { 'display': display };
+                    css[opts.property] = '';
+                    $that.css(css);
+
+                    // find the max height (including padding, but not margin)
+                    if ($that.outerHeight(false) > targetHeight) {
+                        targetHeight = $that.outerHeight(false);
+                    }
+
+                    // revert display block
+                    $that.css('display', '');
+                });
+            } else {
+                // if target set, use the height of the target element
+                targetHeight = opts.target.outerHeight(false);
+            }
 
             // iterate the row and apply the height to all elements
             $row.each(function(){
                 var $that = $(this),
                     verticalPadding = 0;
+
+                // don't apply to a target
+                if (opts.target && $that.is(opts.target)) {
+                    return;
+                }
 
                 // handle padding and border correctly (required when not using border-box)
                 if ($that.css('box-sizing') !== 'border-box') {
@@ -238,13 +274,7 @@
                 }
 
                 // set the height (accounting for padding and border)
-                $that.css(opts.property, maxHeight - verticalPadding);
-                //if(_initialized === false) {
-                //    _initialized = true;
-                //    if(opts.matchedClass !== '') {
-                //        $that.addClass(opts.matchedClass);
-                //    }
-                //}
+                $that.css(opts.property, (targetHeight - verticalPadding) + 'px');
             });
         });
 
@@ -273,7 +303,8 @@
         // generate groups by their groupId set by elements using data-match-height
         $('[data-match-height], [data-mh]').each(function() {
             var $this = $(this),
-                groupId = $this.attr('data-match-height') || $this.attr('data-mh');
+                groupId = $this.attr('data-mh') || $this.attr('data-match-height');
+
             if (groupId in groups) {
                 groups[groupId] = groups[groupId].add($this);
             } else {
@@ -346,4 +377,4 @@
         matchHeight._update(true, event);
     });
 
-})(jQuery);
+});
