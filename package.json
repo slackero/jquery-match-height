@@ -1,11 +1,11 @@
 {
   "name": "jquery-match-height",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "license": "MIT",
   "homepage": "http://brm.io/jquery-match-height/",
   "author": "Liam Brummitt <liam@brm.io> (http://brm.io/)",
   "description": "a responsive equal heights plugin for jQuery",
-  "main": "jquery.matchHeight.js",
+  "main": "dist/jquery.matchHeight.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/liabru/jquery-match-height.git"
@@ -25,10 +25,14 @@
     "test": "gulp test"
   },
   "devDependencies": {
+    "async": "^1.5.0",
+    "connect-static-transform": "^0.8.0",
     "gulp": "^3.9.0",
     "gulp-browserstack": "^1.0.0",
     "gulp-bump": "^1.0.0",
+    "gulp-conventional-changelog": "^0.7.0",
     "gulp-eslint": "^1.0.0",
+    "gulp-github-release": "^1.1.0",
     "gulp-header": "^1.7.1",
     "gulp-rename": "^1.2.2",
     "gulp-replace": "^0.5.4",

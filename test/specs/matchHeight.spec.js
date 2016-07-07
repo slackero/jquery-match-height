@@ -2,7 +2,6 @@
 // manual testing before going into production is still advised!
 // the following features are implemented, but do not have specs yet:
 
-// TODO: spec for $(elements).matchHeight({ property: 'min-height' })
 // TODO: spec for $(elements).matchHeight({ remove: true })
 // TODO: spec for events: ready, load, resize, orientationchange
 // TODO: spec for $.fn.matchHeight._groups
@@ -32,14 +31,16 @@ describe('matchHeight', function() {
 
     it('has been defined', function(done) {
         var matchHeight = $.fn.matchHeight;
-        expect(typeof matchHeight).toBe('function');
-        expect(testHelper.isArray(matchHeight._groups)).toBe(true);
-        expect(typeof matchHeight._throttle).toBe('number');
+        expect($.isFunction(matchHeight)).toBe(true);
+        expect($.isArray(matchHeight._groups)).toBe(true);
+        expect($.isNumeric(matchHeight._throttle)).toBe(true);
         expect(typeof matchHeight._maintainScroll).toBe('boolean');
-        expect(typeof matchHeight._rows).toBe('function');
-        expect(typeof matchHeight._apply).toBe('function');
-        expect(typeof matchHeight._applyDataApi).toBe('function');
-        expect(typeof matchHeight._update).toBe('function');
+        expect($.isFunction(matchHeight._rows)).toBe(true);
+        expect($.isFunction(matchHeight._apply)).toBe(true);
+        expect($.isFunction(matchHeight._applyDataApi)).toBe(true);
+        expect($.isFunction(matchHeight._update)).toBe(true);
+        expect($.isFunction(matchHeight._parse)).toBe(true);
+        expect($.isFunction(matchHeight._parseOptions)).toBe(true);
         done();
     });
 
@@ -106,7 +107,7 @@ describe('matchHeight', function() {
         expect(1.0001).not.toBeWithinTolerance(0);
 
         $('.simple-items, .image-items, .nested-items-parent, .nested-items,' +
-          '.fixed-items, .inline-block-items, .inline-flex-items, .items-with-float')
+          '.fixed-items, .inline-block-items, .inline-flex-items, .items-with-float, .inline-style-items, .remove-items')
         .each(function() {
             var $items = $(this).children('.item'),
                 rows = $.fn.matchHeight._rows($items);
@@ -147,7 +148,7 @@ describe('matchHeight', function() {
         $.fn.matchHeight._update();
 
         $('.simple-items, .image-items,' +
-          '.fixed-items, .inline-block-items, .inline-flex-items, .items-with-float')
+          '.fixed-items, .inline-block-items, .inline-flex-items, .items-with-float, .inline-style-items, .remove-items')
         .each(function() {
             var $items = $(this).children('.item'),
                 targetHeight = $items.first().outerHeight(),
@@ -252,22 +253,33 @@ describe('matchHeight', function() {
         done();
     });
 
+    it('has applied the property option', function(done) {
+        var $items = $('.property-items'),
+            currentBreakpoint = testHelper.getCurrentBreakpoint(),
+            _parse = $.fn.matchHeight._parse,
+            item0Value = _parse($items.find('.item-0').css('min-height')),
+            item1Value = _parse($items.find('.item-1').css('min-height')),
+            item2Value = _parse($items.find('.item-2').css('min-height')),
+            item3Value = _parse($items.find('.item-3').css('min-height'));
+
+        if (currentBreakpoint === 'tablet') {
+            expect(item0Value).toBeWithinTolerance(item1Value);
+            expect(item3Value).toBeWithinTolerance(item2Value);
+        } else if (currentBreakpoint === 'desktop') {
+            expect(item0Value).toBeWithinTolerance(item1Value);
+            expect(item2Value).toBeWithinTolerance(item1Value);
+            expect(item3Value).toBeWithinTolerance(item1Value);
+        }
+
+        done();
+    });
+
     it('can manually update heights and fires global callbacks', function(done) {
-        var currentBreakpoint = testHelper.getCurrentBreakpoint(),
-            calledBefore = false,
-            calledAfter = false;
+        var currentBreakpoint = testHelper.getCurrentBreakpoint();
 
-        var oldBefore = $.fn.matchHeight._beforeUpdate,
-            oldAfter = $.fn.matchHeight._afterUpdate;
-
-        // set some test update callbacks
-        $.fn.matchHeight._beforeUpdate = function() {
-            calledBefore = true;
-        };
-
-        $.fn.matchHeight._afterUpdate = function() {
-            calledAfter = true;
-        };
+        // spy on global callbacks
+        spyOn($.fn.matchHeight, '_beforeUpdate');
+        spyOn($.fn.matchHeight, '_afterUpdate');
 
         // add more content to one of the items to change it's height
         $('.simple-items .item-1').append('<p>Test content update.</p>');
@@ -309,12 +321,15 @@ describe('matchHeight', function() {
         }
 
         // check callbacks were fired
-        expect(calledBefore).toBe(true);
-        expect(calledAfter).toBe(true);
+        expect($.fn.matchHeight._beforeUpdate).toHaveBeenCalled();
+        expect($.fn.matchHeight._afterUpdate).toHaveBeenCalled();
 
-        // revert callbacks
-        $.fn.matchHeight._beforeUpdate = oldBefore;
-        $.fn.matchHeight._afterUpdate = oldAfter;
+        var beforeUpdateArgs = $.fn.matchHeight._beforeUpdate.calls.argsFor(0),
+            afterUpdateArgs = $.fn.matchHeight._afterUpdate.calls.argsFor(0);
+
+        // group arg
+        expect($.isArray(beforeUpdateArgs[1])).toBe(true);
+        expect($.isArray(afterUpdateArgs[1])).toBe(true);
 
         done();
     });
@@ -325,6 +340,8 @@ describe('matchHeight', function() {
         expect(_parse(1.1)).toBe(1.1);
         expect(_parse('1')).toBe(1);
         expect(_parse('1.1')).toBe(1.1);
+        expect(_parse('1px')).toBe(1);
+        expect(_parse('1.1px')).toBe(1.1);
         expect(_parse(NaN)).toBe(0);
         done();
     });
@@ -375,6 +392,41 @@ describe('matchHeight', function() {
 
         done();
     });
+
+    it('maintains inline styles', function(done) {
+        var $items = $('.inline-style-items'),
+            item0Value = $items.find('.item-0')[0].style.display,
+            item1Value = $items.find('.item-1')[0].style.position,
+            item2Value = $items.find('.item-2')[0].style.minHeight,
+            item3Value = $items.find('.item-3')[0].style.padding;
+
+        expect(item0Value).toBe('inline-block');
+        expect(item1Value).toBe('relative');
+        expect(item2Value).toBe('10px');
+        expect(item3Value).toBe('15px');
+
+        done();
+    });
+
+    it('can be removed', function(done) {
+        var matchHeight = $.fn.matchHeight,
+            $item = $('.remove-items').find('.item-0'),
+            isInAnyGroup = false;
+
+        $item.matchHeight({ remove: true });
+        expect($item[0].style.height).toBeFalsy();
+
+        for (var i = 0; i < matchHeight._groups.length; i += 1) {
+            var group = matchHeight._groups[i];
+            if ($.inArray($item[0], group.elements) !== -1) {
+                isInAnyGroup = true;
+                break;
+            }
+        }
+
+        expect(isInAnyGroup).toBeFalsy();
+        done();
+    });
 });
 
 
@@ -402,9 +454,6 @@ jasmine.getEnv().addReporter({
 
 var testHelper = {
     isMediaQueriesSupported: typeof (window.matchMedia || window.msMatchMedia) !== 'undefined' || navigator.userAgent.indexOf('MSIE 9.0') >= 0,
-    isArray: function(obj) {
-        return Object.prototype.toString.call(obj) === '[object Array]';
-    },
     getCurrentBreakpoint: function() {
         if (testHelper.isMediaQueriesSupported) {
             var windowWidth = $(window).width();

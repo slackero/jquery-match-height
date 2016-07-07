@@ -9,6 +9,7 @@ var eslint = require('gulp-eslint');
 var gulpBump = require('gulp-bump');
 var changelog = require('gulp-conventional-changelog');
 var tag = require('gulp-tag-version');
+var release = require('gulp-github-release');
 var sequence = require('run-sequence');
 var gutil = require('gulp-util');
 var replace = require('gulp-replace');
@@ -17,9 +18,11 @@ var webserver = require('gulp-webserver');
 var selenium = require('selenium-standalone');
 var ngrok = require('ngrok');
 var staticTransform = require('connect-static-transform');
-var privateConfig = require('./test/conf/private.conf.js').config;
 var pkg = require('./package.json');
 var extend = require('util')._extend;
+var exec = require('child_process').exec;
+var fs = require('fs');
+var buildDirectory = 'dist';
 var server;
 
 gulp.task('release', function(callback) {
@@ -27,15 +30,48 @@ gulp.task('release', function(callback) {
     sequence('lint', 'test', 'build', 'bump:' + type, 'changelog', 'tag', callback);
 });
 
+gulp.task('release:push', function(callback) {
+    sequence('release:push:git', 'release:push:github', 'release:push:npm', callback);
+});
+
+gulp.task('release:push:github', function(callback) {
+    return gulp.src([
+            'CHANGELOG.md',
+            'LICENSE', 
+            buildDirectory + '/jquery.matchHeight-min.js', 
+            buildDirectory + '/jquery.matchHeight.js'
+        ])
+        .pipe(release({
+          owner: 'liabru',
+          repo: pkg.name,
+          tag: pkg.version,
+          name: 'jquery.matchHeight.js ' + pkg.version
+        }));
+});
+
+gulp.task('release:push:git', function(callback) {
+    shell('git push', callback);
+});
+
+gulp.task('release:push:npm', function(callback) {
+    shell('npm publish', callback);
+});
+
 gulp.task('build', function() {
-    build = extend(pkg)
+    var build = extend(pkg);
     build.version = process.argv[4] || pkg.version;
-    return gulp.src(pkg.main)
+
+    gulp.src('jquery.matchHeight.js')
+        .pipe(replace("jquery-match-height master", "jquery-match-height " + build.version))
+        .pipe(replace("version = 'master'", "version = '" + build.version + "'"))
+        .pipe(gulp.dest(buildDirectory));
+
+    return gulp.src('jquery.matchHeight.js')
         .pipe(replace("version = 'master'", "version = '" + build.version + "'"))
         .pipe(uglify({ output: { max_line_len: 500 } }))
         .pipe(header(banner, { build: build }))
         .pipe(rename({ suffix: '-min' }))
-        .pipe(gulp.dest('.'));
+        .pipe(gulp.dest(buildDirectory));
 });
 
 gulp.task('lint', function() {
@@ -75,73 +111,71 @@ gulp.task('changelog', function () {
 });
 
 gulp.task('serve', function() {
-    process.on('uncaughtException', function(err) {
-        if (err.errno === 'EADDRINUSE') {
-            gutil.log('Server already running (or port is otherwise in use)');
-        }
-    });     
+    serve(false);
+});
 
-    server = gulp.src('.')
-        .pipe(webserver({
-            host: '0.0.0.0',
-            //livereload: true,
-            directoryListing: true,
-            middleware: function(req, res, next) {
-                var ieMode = (req._parsedUrl.query || '').replace('=','');
-                if (ieMode in emulateIEMiddleware) {
-                    emulateIEMiddleware[ieMode](req, res, next);
-                } else {
-                    next();
-                }
-            }
-        }));
+gulp.task('serve:test', function() {
+    serve(true);
+});
+
+gulp.task('serve:stop', function() {
+    if (server) {
+        try {
+            server.emit('kill');
+        } catch (e) {} // eslint-disable-line no-empty
+        gutil.log('Web server stopped');
+    }
 });
 
 gulp.task('selenium', function(done) {
-    gutil.log('Setting up Selenium server...');
-    selenium.install({
-        logger: function(message) { gutil.log(message); }
-    }, function(err) {
-        if (err) {
-            done(err);
-            return;
-        }
+    var start = function(err) {
         gutil.log('Starting Selenium server...');
         selenium.start(function(err, child) {
             gutil.log('Selenium server started');
             selenium.child = child;
             done(err);
         });
+    };
+
+    try {
+        fs.statSync('node_modules/selenium-standalone/.selenium');
+        start();
+    } catch (e) {
+        gutil.log('Setting up Selenium server...');
+        selenium.install({
+            logger: function(message) { gutil.log(message); }
+        }, function(err) {
+            start(err);
+        });
+    }
+});
+
+gulp.task('test', function(done) {
+    sequence('lint', 'serve:test', 'selenium', function() {
+        var error;
+        gutil.log('Starting webdriver...');
+
+        var finish = function(err) {
+            gutil.log('Webdriver stopped');
+            selenium.child.kill();
+            gutil.log('Selenium server stopped');
+            gulp.start('serve:stop');
+            done(error || err);
+        };
+
+        gulp.src('test/conf/local.conf.js')
+            .pipe(webdriver({
+                baseUrl: 'http://localhost:8000'
+            }))
+            .on('error', function(err) { 
+                console.error(err);
+                error = err; 
+            })
+            .on('finish', finish);
     });
 });
 
-gulp.task('test', ['lint', 'serve', 'selenium'], function(done) {
-    var error;
-    gutil.log('Starting webdriver...');
-
-    var finish = function(err) {
-        gutil.log('Webdriver stopped');
-        selenium.child.kill();
-        gutil.log('Selenium server stopped');
-        if (server) {
-            try {
-                server.emit('kill');
-            } catch(e) {}
-            gutil.log('Web server stopped');
-        }
-        done(error || err);
-    };
-
-
-    gulp.src('test/conf/local.conf.js')
-        .pipe(webdriver({
-            baseUrl: 'http://localhost:8000'
-        }))
-        .on('error', function(err) { error = err; })
-        .on('finish', finish);
-});
-
-gulp.task('test:cloud', ['lint', 'serve'], function(done) {
+gulp.task('test:cloud', ['lint', 'serve:test'], function(done) {
     ngrok.connect({
         authtoken: null,
         port: 8000
@@ -153,20 +187,17 @@ gulp.task('test:cloud', ['lint', 'serve'], function(done) {
         }))
         .on('finish', function(err) {
             if (server) {
-                try {
-                    server.emit('kill');
-                } catch(e) {}
                 ngrok.disconnect();
                 ngrok.kill();
                 gutil.log('Tunnel stopped');
-                gutil.log('Web server stopped');
+                gulp.start('serve:stop');
             }
             done(err);
         });
     });
 });
 
-gulp.task('test:cloud:all', ['lint', 'serve'], function(done) {
+gulp.task('test:cloud:all', ['lint', 'serve:test'], function(done) {
     ngrok.connect({
         authtoken: null,
         port: 8000
@@ -178,18 +209,39 @@ gulp.task('test:cloud:all', ['lint', 'serve'], function(done) {
         }))
         .on('finish', function(err) {
             if (server) {
-                try {
-                    server.emit('kill');
-                } catch(e) {}
                 ngrok.disconnect();
                 ngrok.kill();
                 gutil.log('Tunnel stopped');
-                gutil.log('Web server stopped');
+                gulp.start('serve:stop');
             }
             done(err);
         });
     });
 });
+
+var serve = function(isTest) {
+    process.on('uncaughtException', function(err) {
+        if (err.errno === 'EADDRINUSE') {
+            gutil.log('Server already running (or port is otherwise in use)');
+        }
+    });
+
+    server = gulp.src('.')
+        .pipe(webserver({
+            host: '0.0.0.0',
+            livereload: !isTest,
+            middleware: function(req, res, next) {
+                var ieMode = (req._parsedUrl.query || '').replace('=','');
+                if (ieMode in emulateIEMiddleware) {
+                    emulateIEMiddleware[ieMode](req, res, next);
+                } else {
+                    next();
+                }
+            },
+            open: isTest ? false : 'http://localhost:8000/test/page/test.html',
+            directoryListing: true
+        }));
+};
 
 var banner = [
   '/*',
@@ -214,4 +266,19 @@ var emulateIEMiddleware = {
     'ie8': emulateIEMiddlewareFactory(8),
     'ie9': emulateIEMiddlewareFactory(9),
     'ie10': emulateIEMiddlewareFactory(10)
+};
+
+var shell = function(command, callback) {
+    var args = process.argv.slice(3).join(' '),
+        proc = exec(command + ' ' + args, function(err) {
+            callback(err);
+        });
+
+    proc.stdout.on('data', function(data) {
+        process.stdout.write(data);
+    });
+
+    proc.stderr.on('data', function(data) {
+        process.stderr.write(data);
+    });
 };

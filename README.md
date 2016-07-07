@@ -5,6 +5,9 @@ It handles many edge cases that cause similar plugins to fail.
 
 [brm.io/jquery-match-height](http://brm.io/jquery-match-height/)
 
+[Demo](#demo) - [Features](#features) - [Gallery](#gallery) - [Install](#install) - [Usage](#usage) - [Options](#options) - [Data API](#data-api)  
+[Advanced Usage](#advanced-usage) - [Tests](#tests) - [Known limitations](#known-limitations) - [Changelog](#changelog) - [License](#license)
+
 [![](http://api.libscore.com/badge/$.fn.matchHeight.svg)](http://libscore.com#$.fn.matchHeight)
 
 ### Demo
@@ -32,16 +35,25 @@ See the [jquery.matchHeight.js demo](http://brm.io/jquery-match-height-demo).
 - module loader support
 - tested in IE8+, Chrome, Firefox, Safari, Android, iOS
 
-### Status
+### Gallery
 
-Current version is `0.6.0`.   
-Use the master build for the latest features.   
-Please report any [issues](https://github.com/liabru/jquery-match-height/issues) you find.
+See how others are using jquery.matchHeight.js
+
+- [Visa](https://www.visa.co.uk/)
+- [Nokia](http://www.nokia.com/)
+- [PayPal](https://www.paypal.com/)
+- [MTV](http://www.mtv.co.uk/)
+- [Bose](https://www.bose.com/)
+- [Chipotle](http://chipotle.com/)
+- [Fisher-Price](http://www.fisher-price.com/)
+- [Sega](http://sega.jp/)
+- [barackobama.com](https://www.barackobama.com/)
+- [more...](http://libscore.com#$.fn.matchHeight)
 
 ### Install
 
 [jQuery](http://jquery.com/download/) is required, so include it first.
-  Download [jquery.matchHeight.js](https://github.com/liabru/jquery-match-height/blob/master/jquery.matchHeight.js) and include the script in your HTML file:
+  Download [jquery.matchHeight.js](https://raw.githubusercontent.com/liabru/jquery-match-height/master/jquery.matchHeight.js) and include the script in your HTML file:
 
 	<script src="jquery.matchHeight.js" type="text/javascript"></script>
 
